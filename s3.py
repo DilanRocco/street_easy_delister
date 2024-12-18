@@ -8,7 +8,7 @@ class S3:
         pass
     
     def make_file_key(self):
-        now = datetime.now()
+        now = datetime.datetime.now()
         t = f'{now:%Y-%m-%d %H:%M:%S%z}'
         return t
         

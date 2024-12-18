@@ -11,39 +11,41 @@ class Scraper:
         self.s3 = S3()
         self.query = Query()
         self.seen_recently = [] # pull from the database
-        self.important_info = {}
 
     keys_to_include = {"daysOnMarket", "address"}
     # goes through listings, makes requests to listening we haven't seen before
     def getSalesInfo(self, listings):
         res = []
-        
         for listing in listings:
             id = listing['id']
             query = '/sales/' + id
             if id not in self.seen_recently:
                 response = self.query.rapid_request(query=query)
+                #print(response)
                 filtered_dict = {key: response[key] for key in self.keys_to_include}
-                self.important_info[id] = filtered_dict
+                print(filtered_dict)
+                res.append(filtered_dict)
             else:
-                self.important_info[id] = self.seen_recently[id]
-            print(list(self.important_info)[-1])
+                res.append(self.seen_recently[id])
         return res
             
     # creates a CSV from the sales
-    def create_csv(self, all_sales):
+    def create_csv(self, all_sales, file_name: str = None):
         df = pd.DataFrame(all_sales)
+        if file_name:
+            df.to_csv('delisted.csv')
+            return
         csv = df.to_csv()
         return csv
 
 
     # Gets all pages from a specific query
-    def run_through_pages(self, query: str):
+    def run_through_pages(self, query: str, download_csv: bool = False):
         nextOffset = 1
         count = None
         all_listings = []
         runs = 0
-        while runs < 5 and not count or nextOffset < count:
+        while runs < 2 and (not count or nextOffset < count):
             runs += 1
             print(f'Starting offset for listings: {str(nextOffset)}')
             new_query = query + '&offset=' + str(nextOffset-1) 
@@ -53,8 +55,13 @@ class Scraper:
 
             listings = response['listings']
             all_listings += self.getSalesInfo(listings)
-            
-        csv = self.create_csv(all_listings)
+
+            sorted_listing = sorted(all_listings, key=lambda x: x['daysOnMarket'])
+        
+        if download_csv:
+            self.create_csv(sorted_listing, "delisted.csv")
+            return 
+        csv = self.create_csv(sorted_listing)
         self.s3.upload_csv_to_s3(csv)
         self.db.upload_sales_to_database(all_listings)
 
