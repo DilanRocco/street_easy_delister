@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import math
-
+import pandas as pd
 from db import DB
 from query import Query
 from s3 import S3
@@ -30,8 +30,12 @@ class Scraper:
             print(list(self.important_info)[-1])
         return res
             
+    # creates a CSV from the sales
     def create_csv(self, all_sales):
-        pass
+        df = pd.DataFrame(all_sales)
+        csv = df.to_csv()
+        return csv
+
 
     # Gets all pages from a specific query
     def run_through_pages(self, query: str):
@@ -49,6 +53,7 @@ class Scraper:
 
             listings = response['listings']
             all_listings += self.getSalesInfo(listings)
+            
         csv = self.create_csv(all_listings)
         self.s3.upload_csv_to_s3(csv)
         self.db.upload_sales_to_database(all_listings)
