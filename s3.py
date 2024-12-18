@@ -4,7 +4,7 @@ import datetime
 class S3:
     def __init__(self):
         self.s3 = boto3.client('s3')
-        self.bucket_name = "delisted_sales_list"
+        self.bucket_name = "sales-list"
         pass
     
     def make_file_key(self):
@@ -31,3 +31,6 @@ class S3:
                 "statusCode": 500,
                 "body": f"Error uploading file: {str(e)}"
             }
+    
+    def get_data_from_s3():
+        pass

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 import math
 import pandas as pd
-from db import DB
 from query import Query
 from s3 import S3
 
 class Scraper:
     def __init__(self):
-        self.db = DB()
         self.s3 = S3()
         self.query = Query()
         self.seen_recently = [] # pull from the database
@@ -45,7 +43,7 @@ class Scraper:
         count = None
         all_listings = []
         runs = 0
-        while runs < 2 and (not count or nextOffset < count):
+        while runs < 1 and (not count or nextOffset < count):
             runs += 1
             print(f'Starting offset for listings: {str(nextOffset)}')
             new_query = query + '&offset=' + str(nextOffset-1) 
@@ -63,9 +61,8 @@ class Scraper:
             return 
         csv = self.create_csv(sorted_listing)
         self.s3.upload_csv_to_s3(csv)
-        self.db.upload_sales_to_database(all_listings)
 
 
 if __name__ == "__main__":
-    query = 'https://streeteasy-api.p.rapidapi.com/sales/search?areas=all-downtown%2Call-midtown&minPrice=1000000&limit=5'
+    query = 'https://streeteasy-api.p.rapidapi.com/sales/search?areas=all-downtown%2Call-midtown&minPrice=1000000&limit=15'
     Scraper().run_through_pages(query)
