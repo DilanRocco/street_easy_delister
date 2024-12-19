@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import math
 import pandas as pd
 from query import Query
 from s3 import S3
