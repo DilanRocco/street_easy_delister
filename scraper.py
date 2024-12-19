@@ -10,7 +10,7 @@ class Scraper:
         self.query = Query()
         self.seen_recently = [] # pull from the database
 
-    keys_to_include = {"daysOnMarket", "address"}
+    keys_to_include = {"daysOnMarket", "address","id"} # first key must be the value you are sorting on
     # goes through listings, makes requests to listening we haven't seen before
     def getSalesInfo(self, listings):
         res = []
@@ -19,12 +19,13 @@ class Scraper:
             query = '/sales/' + id
             if id not in self.seen_recently:
                 response = self.query.rapid_request(query=query)
-                #print(response)
+
                 filtered_dict = {key: response[key] for key in self.keys_to_include}
-                print(filtered_dict)
-                res.append(filtered_dict)
+                sale = filtered_dict
+                res.append(sale)
             else:
-                res.append(self.seen_recently[id])
+                sale = self.seen_recently[id]
+                res.append(sale)
         return res
             
     # creates a CSV from the sales
@@ -53,9 +54,8 @@ class Scraper:
 
             listings = response['listings']
             all_listings += self.getSalesInfo(listings)
-
             sorted_listing = sorted(all_listings, key=lambda x: x['daysOnMarket'])
-        
+        print(all_listings)
         if download_csv:
             self.create_csv(sorted_listing, "delisted.csv")
             return 
@@ -65,4 +65,4 @@ class Scraper:
 
 if __name__ == "__main__":
     query = 'https://streeteasy-api.p.rapidapi.com/sales/search?areas=all-downtown%2Call-midtown&minPrice=1000000&limit=15'
-    Scraper().run_through_pages(query)
+    Scraper().run_through_pages(query, download_csv=True)
