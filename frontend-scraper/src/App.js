@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import AWS from "aws-sdk";
 
+
 const S3CsvViewer = () => {
   const [csvFiles, setCsvFiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -10,11 +11,12 @@ const S3CsvViewer = () => {
     const fetchCsvFiles = async () => {
       setLoading(true);
       setError("");
-
+      console.log(process.env.REACT_APP_AWS_KEY)
+      console.log(process.env.REACT_APP_AWS_SECRET_KEY)
       try {
         AWS.config.update({
           region: "us-east-2", 
-          credentials: new AWS.Credentials("AKIATX3PHYZ7IFMKRQFJ", "S9ZKPyGSouwaadDoVkxC/rC+GAbcxm16j1OzEa8W"),
+          credentials: new AWS.Credentials(process.env.REACT_APP_AWS_KEY, process.env.REACT_APP_AWS_SECRET_KEY),
         });
 
         const s3 = new AWS.S3();
