@@ -4,8 +4,7 @@ from s3 import S3
 
 class Tests():
     def run(self):
-        print(S3().get_data_from_s3())
-
+       pass
 
 
 if __name__ == "__main__":

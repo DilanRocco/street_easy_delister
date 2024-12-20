@@ -1,2 +1,2 @@
 docker run -it -v $(pwd):/app amazonlinux:2
-export AWS_PROFILE=profile_name
+export AWS_PROFILE=ry-scraper

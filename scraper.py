@@ -1,30 +1,42 @@
 #!/usr/bin/env python3
+import datetime
+import json
 import pandas as pd
 from query import Query
 from s3 import S3
-
+import os
 class Scraper:
     def __init__(self):
         self.s3 = S3()
         self.query = Query()
-        self.seen_recently = [] # pull from the database
+        self.setup()
 
-    keys_to_include = {"daysOnMarket", "address","id"} # first key must be the value you are sorting on
+    def setup(self):
+        t = self.s3.get_file_from_s3(bucket_name="seen-sales", file_name="master.txt")
+        self.seen_already = set(t.split(","))
+
+    keys_to_include = {"closedAt", "daysOnMarket", "address","price"} # first key must be the value you are sorting on
+
+    def make_se_url(self, id):
+        return f'https://www.streeteasy.com/sale/{id}'
+    
     # goes through listings, makes requests to listening we haven't seen before
     def getSalesInfo(self, listings):
         res = []
         for listing in listings:
             id = listing['id']
             query = '/sales/' + id
-            if id not in self.seen_recently:
+            #if True:
+            if id not in self.seen_already:
                 response = self.query.rapid_request(query=query)
-
+                if response["status"] != "delisted":
+                    self.seen_already.add(id)
+                    continue
                 filtered_dict = {key: response[key] for key in self.keys_to_include}
+                filtered_dict["link"] = self.make_se_url(id)
                 sale = filtered_dict
                 res.append(sale)
-            else:
-                sale = self.seen_recently[id]
-                res.append(sale)
+                self.seen_already.add(id)
         return res
             
     # creates a CSV from the sales
@@ -36,32 +48,45 @@ class Scraper:
         csv = df.to_csv()
         return csv
 
-
+    def make_file_key(self):
+        now = datetime.datetime.now()
+        t = f'{now:%Y-%m-%d %H:%M:%S%z}'
+        return t
+    
     # Gets all pages from a specific query
-    def run_through_pages(self, query: str, download_csv: bool = False):
-        nextOffset = 1
+    def run_through_pages(self, download_csv: bool = False):
+        query = self.query.get_rapid_query()
+        nextOffset = int(os.environ.get('START_OFFSET'))
         count = None
         all_listings = []
         runs = 0
-        while runs < 1 and (not count or nextOffset < count):
+        while runs < int(os.environ.get('RUNS')) and (not count or nextOffset < count):
             runs += 1
             print(f'Starting offset for listings: {str(nextOffset)}')
             new_query = query + '&offset=' + str(nextOffset-1) 
             response = self.query.rapid_request(new_query)
+            print(response)
             count = response['pagination']['count']
-            nextOffset = response['pagination']['nextOffset']
+           
 
             listings = response['listings']
             all_listings += self.getSalesInfo(listings)
             sorted_listing = sorted(all_listings, key=lambda x: x['daysOnMarket'])
+            if 'nextOffset' not in response['pagination']:
+                break
+            nextOffset = response['pagination']['nextOffset']
         print(all_listings)
         if download_csv:
             self.create_csv(sorted_listing, "delisted.csv")
             return 
         csv = self.create_csv(sorted_listing)
-        self.s3.upload_csv_to_s3(csv)
+        self.s3.upload_file_to_s3(bucket_name="sales-list", file_name=self.make_file_key(), file=csv, content_type='text/csv')
+        master = ",".join(map(str, self.seen_already))
+        self.s3.upload_file_to_s3(bucket_name="seen-sales", file_name="master.txt", file=master, content_type="text/plain")
 
 
 if __name__ == "__main__":
-    query = 'https://streeteasy-api.p.rapidapi.com/sales/search?areas=all-downtown%2Call-midtown&minPrice=1000000&limit=15'
-    Scraper().run_through_pages(query, download_csv=True)
+    print(os.environ.get('LIMIT'))
+    print(os.environ.get('RUNS'))
+    
+    Scraper().run_through_pages(download_csv=False)
