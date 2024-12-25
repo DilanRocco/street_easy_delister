@@ -49,7 +49,7 @@ class Scraper:
         return csv
 
     def make_file_key(self):
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(tz='US/Eastern')
         t = f'{now:%Y-%m-%d %H:%M:%S%z}'
         return t
     
