@@ -65,9 +65,9 @@ const S3CsvViewer = () => {
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">StreetEasy Delisted Rentals Report</h1>
+            <h1 className="text-2xl font-bold text-gray-900">StreetEasy Delisted Sales Report</h1>
             <p className="mt-2 text-gray-500">
-              Daily report of properties removed from the active rental market on StreetEasy
+              Daily report of properties removed from the active sales market on StreetEasy
             </p>
           </div>
           <button
