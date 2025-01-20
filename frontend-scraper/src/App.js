@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import AWS from "aws-sdk";
 import { Calendar, FileSpreadsheet, RefreshCcw } from "lucide-react";
+
 
 const S3CsvViewer = () => {
   const [csvFiles, setCsvFiles] = useState([]);
@@ -13,32 +13,37 @@ const S3CsvViewer = () => {
     setError("");
     
     try {
-      AWS.config.update({
-        region: "us-east-2",
-        credentials: new AWS.Credentials(
-          process.env.REACT_APP_AWS_KEY,
-          process.env.REACT_APP_AWS_SECRET_KEY
-        ),
+      // Make the API call to your Lambda endpoint (replace with your actual API URL)
+      const response = await fetch("https://succ1j1n40.execute-api.us-east-2.amazonaws.com/test", {
+        method: "GET", // or "POST", depending on your use case
+        headers: {
+          "Content-Type": "application/json", // Specify the content type here
+        }
       });
-      
-      const s3 = new AWS.S3();
-      const bucketName = "sales-list";
-      const data = await s3.listObjectsV2({ Bucket: bucketName }).promise();
-      
-      const files = data.Contents
-        .map((file) => ({
-          fileName: file.Key,
-          downloadLink: s3.getSignedUrl("getObject", {
-            Bucket: bucketName,
-            Key: file.Key,
-            Expires: 3600,
-          }),
-          date: new Date(file.Key.split(" ")[0]),
-        }))
-        .sort((a, b) => b.date - a.date);  
-      
-      setCsvFiles(files);
-      setLastUpdated(new Date().toLocaleString());
+      if (!response.ok) {
+        // If the response status is not OK (not 200-299), throw an error
+        throw new Error("Failed to fetch CSV files. Please try again later.");
+      }
+      const data = await response.json();
+      const body = JSON.parse(data.body)
+
+
+      if (response.ok) {
+          // Make sure body.files exists before mapping
+          if (body && body.files) {
+              const files = body.files
+                  .map((file) => ({
+                      fileName: file.fileName,
+                      content: file.content,
+                      date: new Date(file.fileName.split(" ")[0]),
+                  }))
+                  .sort((a, b) => b.date - a.date);
+              setCsvFiles(files);
+              setLastUpdated(new Date().toLocaleString());
+          } else {
+              setError("No files found in the response");
+          }
+      }
     } catch (err) {
       console.error("Error fetching files:", err);
       setError("Failed to fetch CSV files. Please try again later.");
