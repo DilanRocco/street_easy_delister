@@ -35,7 +35,7 @@ const S3CsvViewer = () => {
           }),
           date: new Date(file.Key.split(" ")[0]),
         }))
-        .sort((a, b) => b.date - a.date);  // Sort by date, newest first
+        .sort((a, b) => b.date - a.date);  
       
       setCsvFiles(files);
       setLastUpdated(new Date().toLocaleString());
