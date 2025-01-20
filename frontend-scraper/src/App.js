@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Calendar, FileSpreadsheet, RefreshCcw } from "lucide-react";
 
-
 const S3CsvViewer = () => {
   const [csvFiles, setCsvFiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -11,38 +10,35 @@ const S3CsvViewer = () => {
   const fetchCsvFiles = async () => {
     setLoading(true);
     setError("");
-    
     try {
-      // Make the API call to your Lambda endpoint (replace with your actual API URL)
       const response = await fetch("https://succ1j1n40.execute-api.us-east-2.amazonaws.com/test", {
-        method: "GET", // or "POST", depending on your use case
+        method: "GET",
         headers: {
-          "Content-Type": "application/json", // Specify the content type here
+          "Content-Type": "application/json",
         }
       });
+      
       if (!response.ok) {
-        // If the response status is not OK (not 200-299), throw an error
         throw new Error("Failed to fetch CSV files. Please try again later.");
       }
+      
       const data = await response.json();
-      const body = JSON.parse(data.body)
-
-
+      const body = JSON.parse(data.body);
+      
       if (response.ok) {
-          // Make sure body.files exists before mapping
-          if (body && body.files) {
-              const files = body.files
-                  .map((file) => ({
-                      fileName: file.fileName,
-                      content: file.content,
-                      date: new Date(file.fileName.split(" ")[0]),
-                  }))
-                  .sort((a, b) => b.date - a.date);
-              setCsvFiles(files);
-              setLastUpdated(new Date().toLocaleString());
-          } else {
-              setError("No files found in the response");
-          }
+        if (body && body.files) {
+          const files = body.files
+            .map((file) => ({
+              fileName: file.fileName,
+              content: file.content,
+              date: new Date(file.fileName.split(" ")[0]),
+            }))
+            .sort((a, b) => b.date - a.date);
+          setCsvFiles(files);
+          setLastUpdated(new Date().toLocaleString());
+        } else {
+          setError("No files found in the response");
+        }
       }
     } catch (err) {
       console.error("Error fetching files:", err);
@@ -63,6 +59,27 @@ const S3CsvViewer = () => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const handleDownload = (fileName, content) => {
+    // Create a blob from the CSV content
+    const blob = new Blob([content], { type: 'text/csv' });
+    
+    // Create a temporary URL for the blob
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    
+    // Append the link to the document, click it, and remove it
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up the temporary URL
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -111,19 +128,20 @@ const S3CsvViewer = () => {
             
             <div className="space-y-2">
               {csvFiles.map((file) => (
-                <a
+                <button
+                  
                   key={file.fileName}
-                  href={file.downloadLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors"
+                  onClick={() => handleDownload(file.fileName, file.content)}
+                  className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors inline-flex w-full justify-start"
                 >
                   <FileSpreadsheet className="w-5 h-5 text-blue-500" />
                   <div className="flex-1">
-                    <div className="font-medium">Report for {formatDate(file.date)}</div>
-                    <div className="text-sm text-gray-500">{file.fileName}</div>
+                    <div className="font-medium text-left">Report for {formatDate(file.date)}</div>
+                    <div className="text-sm text-gray-500 text-left">{file.fileName}</div>
                   </div>
-                </a>
+                </button>
               ))}
             </div>
             
