@@ -1,23 +1,28 @@
 import React, { useEffect, useState } from "react";
-import { Calendar, FileSpreadsheet, RefreshCcw, Moon, Sun } from "lucide-react";
+import { Calendar, FileSpreadsheet, RefreshCcw, Moon, Sun, ChevronLeft, ChevronRight } from "lucide-react";
 
 const S3CsvViewer = () => {
-  const [csvFiles, setCsvFiles] = useState([]);
+  const [currentBatch, setCurrentBatch] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filesPerPage] = useState(10);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [allFiles, setAllFiles] = useState([]);
+  const [loadedBatches, setLoadedBatches] = useState(new Set());
 
   useEffect(() => {
-    // Update the document body background when dark mode changes
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#ffffff';
-    // Clean up when component unmounts
     return () => {
       document.body.style.backgroundColor = '#ffffff';
     };
   }, [darkMode]);
 
-  const fetchCsvFiles = async () => {
+  const fetchAllFiles = async () => {
     setLoading(true);
     setError("");
     try {
@@ -35,20 +40,20 @@ const S3CsvViewer = () => {
       const data = await response.json();
       const body = JSON.parse(data.body);
       
-      if (response.ok) {
-        if (body && body.files) {
-          const files = body.files
-            .map((file) => ({
-              fileName: file.fileName,
-              content: file.content,
-              date: new Date(file.fileName),
-            }))
-            .sort((a, b) => b.date - a.date);
-          setCsvFiles(files);
-          setLastUpdated(new Date().toLocaleString());
-        } else {
-          setError("No files found in the response");
-        }
+      if (body && body.files) {
+        const files = body.files
+          .map((file) => ({
+            fileName: file.fileName,
+            content: file.content,
+            date: new Date(file.fileName),
+          }))
+          .sort((a, b) => b.date - a.date);
+        setAllFiles(files);
+        setTotalFiles(files.length);
+        loadBatchForPage(1, files);
+        setLastUpdated(new Date().toLocaleString());
+      } else {
+        setError("No files found in the response");
       }
     } catch (err) {
       console.error("Error fetching files:", err);
@@ -58,9 +63,36 @@ const S3CsvViewer = () => {
     }
   };
 
+  const loadBatchForPage = (page, files = allFiles) => {
+    const batchNumber = Math.ceil(page / 5); // 5 pages per batch
+    if (loadedBatches.has(batchNumber)) {
+      // Batch already loaded, just update current page
+      const startIndex = (page - 1) * filesPerPage;
+      const endIndex = startIndex + filesPerPage;
+      setCurrentBatch(files.slice(startIndex, endIndex));
+      return;
+    }
+
+    // Load new batch
+    const batchStartIndex = (batchNumber - 1) * (filesPerPage * 5);
+    const batchEndIndex = batchStartIndex + (filesPerPage * 5);
+    const newBatch = files.slice(batchStartIndex, batchEndIndex);
+    
+    setLoadedBatches(prev => new Set([...prev, batchNumber]));
+    const startIndex = (page - 1) * filesPerPage;
+    const endIndex = startIndex + filesPerPage;
+    setCurrentBatch(files.slice(startIndex, endIndex));
+  };
+
   useEffect(() => {
-    fetchCsvFiles();
+    fetchAllFiles();
   }, []);
+
+  useEffect(() => {
+    if (allFiles.length > 0) {
+      loadBatchForPage(currentPage);
+    }
+  }, [currentPage, allFiles]);
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -82,6 +114,29 @@ const S3CsvViewer = () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   };
+
+  const totalPages = Math.ceil(totalFiles / filesPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const PaginationButton = ({ onClick, disabled, children }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-3 py-2 rounded-md ${
+        darkMode
+          ? disabled ? 'bg-gray-800 text-gray-600' : 'bg-gray-700 text-white hover:bg-gray-600'
+          : disabled ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+      } transition-colors disabled:cursor-not-allowed`}
+    >
+      {children}
+    </button>
+  );
+
+  const startIndex = (currentPage - 1) * filesPerPage + 1;
+  const endIndex = Math.min(startIndex + filesPerPage - 1, totalFiles);
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors`}>
@@ -105,7 +160,7 @@ const S3CsvViewer = () => {
                   {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={fetchCsvFiles}
+                  onClick={fetchAllFiles}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50"
                   disabled={loading}
                 >
@@ -140,7 +195,7 @@ const S3CsvViewer = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  {csvFiles.map((file) => (
+                  {currentBatch.map((file) => (
                     <button
                       key={file.fileName}
                       onClick={() => handleDownload(file.fileName, file.content)}
@@ -163,9 +218,65 @@ const S3CsvViewer = () => {
                   ))}
                 </div>
                 
-                {csvFiles.length === 0 && !loading && (
+                {currentBatch.length === 0 && !loading && (
                   <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     No reports available at this time
+                  </div>
+                )}
+
+                {/* Pagination Controls */}
+                {totalFiles > 0 && (
+                  <div className="mt-6 flex items-center justify-between">
+                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Showing {startIndex}-{endIndex} of {totalFiles} reports
+                    </div>
+                    <div className="flex gap-2">
+                      <PaginationButton
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </PaginationButton>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(page => {
+                          const delta = 1; // Show 1 page before and after current page
+                          return page === 1 || 
+                                 page === totalPages || 
+                                 (page >= currentPage - delta && page <= currentPage + delta);
+                        })
+                        .map((page, index, array) => {
+                          if (index > 0 && array[index - 1] !== page - 1) {
+                            return (
+                              <React.Fragment key={`ellipsis-${page}`}>
+                                <span className={`px-3 py-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>...</span>
+                                <PaginationButton
+                                  onClick={() => handlePageChange(page)}
+                                  disabled={currentPage === page}
+                                >
+                                  {page}
+                                </PaginationButton>
+                              </React.Fragment>
+                            );
+                          }
+                          return (
+                            <PaginationButton
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              disabled={currentPage === page}
+                            >
+                              {page}
+                            </PaginationButton>
+                          );
+                        })}
+                      
+                      <PaginationButton
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </PaginationButton>
+                    </div>
                   </div>
                 )}
               </>
