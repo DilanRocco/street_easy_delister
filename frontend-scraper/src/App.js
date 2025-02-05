@@ -10,6 +10,8 @@ const S3CsvViewer = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [filesPerPage] = useState(10);
   const [nextOffset, setNextOffset] = useState(null);
+  const [previewData, setPreviewData] = useState([]);
+  const [previewOffset, setPreviewOffset] = useState(0);
 
   useEffect(() => {
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#ffffff';
@@ -18,6 +20,7 @@ const S3CsvViewer = () => {
     };
   }, [darkMode]);
 
+  // Fetch list of CSV files
   const fetchFiles = async (page = 1) => {
     setLoading(true);
     setError("");
@@ -32,23 +35,16 @@ const S3CsvViewer = () => {
           }
         }
       );
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch CSV files. Please try again later.");
       }
-  
+
       const data = await response.json();
       console.log("API response:", data);
-      
-      if (data.body && typeof data.body === 'string') {
-        const parsedBody = JSON.parse(data.body);
-        setFiles(parsedBody.items || []);
-        setNextOffset(parsedBody.next_offset);
-      } else {
-        setFiles(data.items || []);
-        setNextOffset(data.next_offset);
-      }
-      
+
+      setFiles(data.items || []);
+      setNextOffset(data.next_offset);
       setLastUpdated(new Date().toLocaleString());
     } catch (err) {
       console.error("Error fetching files:", err);
@@ -58,9 +54,71 @@ const S3CsvViewer = () => {
     }
   };
 
-  useEffect(() => {
-    fetchFiles(currentPage);
-  }, [currentPage]);
+  // Fetch preview data for a specific CSV file
+  const fetchPreview = async (fileKey, offset = 0) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `https://succ1j1n40.execute-api.us-east-2.amazonaws.com/test?offset=${offset}&limit=10&action=preview&file_key=${fileKey}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch CSV preview. Please try again later.");
+      }
+
+      const data = await response.json();
+      setPreviewData(data.preview || []);
+      setPreviewOffset(data.next_offset || 0);
+    } catch (err) {
+      console.error("Error fetching preview:", err);
+      setError("Failed to fetch CSV preview. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle CSV file download
+  const handleDownload = async (fileKey) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `https://succ1j1n40.execute-api.us-east-2.amazonaws.com/test?action=download&file_key=${fileKey}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch CSV file for download.");
+      }
+
+      const data = await response.json();
+      const url = data.download_url;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileKey.split("/").pop();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      setError("Failed to download CSV file. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (fileName) => {
     const date = new Date(fileName);
@@ -69,18 +127,6 @@ const S3CsvViewer = () => {
       month: 'short',
       day: 'numeric'
     });
-  };
-
-  const handleDownload = (fileName, content) => {
-    const blob = new Blob([content], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
   };
 
   const PaginationButton = ({ onClick, disabled, children }) => (
@@ -96,6 +142,10 @@ const S3CsvViewer = () => {
       {children}
     </button>
   );
+
+  useEffect(() => {
+    fetchFiles(currentPage);
+  }, [currentPage]);
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors`}>
@@ -157,7 +207,7 @@ const S3CsvViewer = () => {
                   {files.map((file) => (
                     <button
                       key={file.key}
-                      onClick={() => handleDownload(file.filename, file.content)}
+                      onClick={() => handleDownload(file.key)}
                       className={`flex items-center gap-3 p-3 ${
                         darkMode 
                           ? 'hover:bg-gray-700 border-gray-700' 
